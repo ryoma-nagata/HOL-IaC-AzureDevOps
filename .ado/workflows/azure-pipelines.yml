@@ -1,4 +1,4 @@
-name: IaC Deployment
+name: IaC Deployment Resource Group
 
 trigger:
   branches:
@@ -7,7 +7,6 @@ trigger:
   paths:
     include:
       - infra/*
-      - code/*
       - .ado/workflows/azure-pipelines.yml
 pr:
   branches:
@@ -16,13 +15,17 @@ pr:
   paths:
     include:
       - infra/*
-      - code/*
       - .ado/workflows/azure-pipelines.yml
 
 variables:
   - name: AZURE_RESOURCE_MANAGER_CONNECTION_NAME
     value: "azure-devops-service-connection" # Update to '{yourResourceManagerConnectionName}'
-  - group: demo-vg
+  - name: AZURE_SUBSCRIPTION_ID
+    value: "" # サブスクリプションIDを入力してください
+  - name: RESOURCE_GROUP_NAME
+    value: "" # リソースグループ名を入力してください
+  - name: AZURE_LOCATION
+    value: "japaneast" # Update to '{yourResourceManagerConnectionName}'
 
 
 stages:
@@ -49,17 +52,20 @@ stages:
           # Deploy ARM - validation
           - task: AzureResourceManagerTemplateDeployment@3
             name: ARM_validation
-            displayName: ARM - validation
+            displayName: ARM - validation 
             enabled: true
             continueOnError: false
             inputs:
-              deploymentScope: "Subscription"
-              azureResourceManagerConnection: $(AZURE_RESOURCE_MANAGER_CONNECTION_NAME)
+              deploymentScope: "ResouceGroup"
+              ConnectedServiceName: $(AZURE_RESOURCE_MANAGER_CONNECTION_NAME)
+              subscriptionId: $(AZURE_SUBSCRIPTION_ID) 
+              resourceGroupName: $(RESOURCE_GROUP_NAME)
               location: $(AZURE_LOCATION)
               templateLocation: "Linked artifact"
               csmFile: "$(System.DefaultWorkingDirectory)/infra/main.json"
-              csmParametersFile: "$(System.DefaultWorkingDirectory)/infra/params_demo.json"
+              csmParametersFile: "$(System.DefaultWorkingDirectory)/infra/params.json"
               deploymentMode: "Validation"
+
 
           # Deploy ARM - what-if
           - task: AzureCLI@2
@@ -75,12 +81,12 @@ stages:
                 az account set `
                   --subscription $(AZURE_SUBSCRIPTION_ID)
                 
-                az deployment sub what-if `
-                  --location $(AZURE_LOCATION) `
+                az deployment group what-if `
+                  --resource-group $(RESOURCE_GROUP_NAME) `
                   --subscription $(AZURE_SUBSCRIPTION_ID) `
                   --exclude-change-types Ignore NoChange Unsupported `
                   --template-file "$(System.DefaultWorkingDirectory)/infra/main.json" `
-                  --parameters "$(System.DefaultWorkingDirectory)/infra/params_dev.json" `
+                  --parameters "$(System.DefaultWorkingDirectory)/infra/params.json" `
                   --result-format "FullResourcePayloads"
                 
               powerShellErrorActionPreference: "stop"
@@ -90,8 +96,9 @@ stages:
               powerShellIgnoreLASTEXITCODE: false
 
 
+
   - stage: Deployment
-    displayName: "Deployment of IaC templates"
+    displayName: "Deployment of IaC templates "
     dependsOn: Validation
     # condition: and(succeeded(), in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'))
     jobs:
@@ -115,19 +122,21 @@ stages:
           # Deploy ARM
           - task: AzureResourceManagerTemplateDeployment@3
             name: ARM_deployment
-            displayName: ARM Deployment
+            displayName: Deployment
             enabled: true
             continueOnError: false
             inputs:
-              deploymentScope: "Subscription"
-              azureResourceManagerConnection: $(AZURE_RESOURCE_MANAGER_CONNECTION_NAME)
-              subscriptionId: $(AZURE_SUBSCRIPTION_ID)
+              deploymentScope: "ResouceGroup"
+              ConnectedServiceName: $(AZURE_RESOURCE_MANAGER_CONNECTION_NAME)
+              subscriptionId: $(AZURE_SUBSCRIPTION_ID) 
+              resourceGroupName: $(RESOURCE_GROUP_NAME)
               location: $(AZURE_LOCATION)
               templateLocation: "Linked artifact"
               csmFile: "$(System.DefaultWorkingDirectory)/infra/main.json"
-              csmParametersFile: "$(System.DefaultWorkingDirectory)/infra/params_demo.json"
+              csmParametersFile: "$(System.DefaultWorkingDirectory)/infra/params.json"
               deploymentMode: "Incremental"
               deploymentOutputs: 'armOutputs'
 
           - script: echo $(armOutputs)
             displayName: 'Log armOutputs'
+

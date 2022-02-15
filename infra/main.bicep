@@ -1,26 +1,15 @@
-
-targetScope = 'subscription'
+targetScope = 'resourceGroup'
 
 // general params
-param location string ='japaneast' 
+param storagePrefix string  
+param location string = resourceGroup().location
 
-param project string = ''
-@allowed([
-  'demo'
-  'poc'
-  'dev'
-  'test'
-  'prod'
-])
-param env string ='demo'
-param deployment_id string ='001'
-param userId string 
-
-var uniqueName = '${project}-${deployment_id}'
-
-var tags = {
-  Environment : env
-  Project : project
+module storage 'modules/services/storage.bicep' = {
+  name: 'storageDeployment'
+  params: {
+    location: location
+    storagePrefix: storagePrefix
+  }
 }
 
-var rg_name = '${uniqueName}---${env}'
+
